@@ -1,6 +1,6 @@
 *.pyc
 
-/data/raw
+/src/data/raw
 
 # Packages
 /dist/*
