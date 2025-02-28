@@ -4,6 +4,7 @@ import numpy as np
 import locale
 from main import buscaDados
 import altair as alt
+from streamlit_extras.stylable_container import stylable_container
 
 
 ##################################################################################
@@ -14,7 +15,16 @@ import altair as alt
 locale.setlocale(locale.LC_ALL, "pt_BR.UTF-8")
 st.set_page_config(page_title="Dashboard Despesas", 
                 page_icon="",
-                layout="wide")
+                layout="wide",
+                initial_sidebar_state="collapsed")
+
+with open('style.css') as f:
+    st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+
+st.sidebar.header('Dashboard Despesa `Versão 1.0`')
+
+st.sidebar.subheader('Filtros Disponíveis')
 
 ##################################################################################
 #### LOAD DATA
@@ -27,7 +37,7 @@ def load_data():
 @st.cache_data
 def transform_data(data, meses_selecionados, fornecedores_selecionados, empenhos_selecionados):
     if meses_selecionados:
-        data = data[data['Mês'].isin(meses_selecionados)]
+        data = data[data['MesNome'].isin(meses_selecionados)]
     if fornecedores_selecionados != 'Todos':
         data = data[data['Nome Fornecedor'] == fornecedores_selecionados]
     if empenhos_selecionados != 'Todos':
@@ -38,26 +48,25 @@ def transform_data(data, meses_selecionados, fornecedores_selecionados, empenhos
 df=load_data()
 dfdados = df
 
-# st.write(dfdados)
-
+# with st.expander("Dados RAW"):
+#         st.write(dfdados)
+       
 # Filtros
 todos_fornecedores = df['Nome Fornecedor'].unique().tolist()
 todos_empenhos = df['Empenho'].unique().tolist()
 
 dftemp = df.dropna(subset=['Data'])
 dftemp = dftemp.sort_values(by='Data')
-todos_meses = dftemp['Data'].dt.month.unique().tolist()
+todos_meses = dftemp['Data'].dt.strftime('%B').unique().tolist()
 
+exercicio_analise = dftemp['Data'].dt.year.unique()
 
 ##################################################################################
-#### UI
+#### FILTROS E PARAMETROS
 ##################################################################################
 
-st.title ('Dashboard Despesas Públicadas')
+st.title (f'Dashboard Despesas Publicadas - Exercício {exercicio_analise}')
 st.markdown("_Protótipo v0.0.1_")
-
-# Sidebar com filtro
-st.sidebar.header("Filtros")
 
 meses_selecionados = st.sidebar.multiselect(
     "Selecione um Mês",
@@ -79,9 +88,21 @@ empenho_selecionado = st.sidebar.selectbox(
 
 dffiltrado = transform_data(dfdados, meses_selecionados, fornecedor_selecionado, empenho_selecionado)
 
-# st.write(dffiltrado)
-
 # Somar a coluna "Faturamento"
+
+alteracao_dotacao = dffiltrado["Alteração Dotação"].sum()
+alteracao_dotacao = locale.format_string("%.2f", alteracao_dotacao, grouping=True)
+dotacao_inicial = dffiltrado["Dotação"].sum()
+dotacao_inicial = locale.format_string("%.2f", dotacao_inicial, grouping=True)
+dotacao_atualizada = dffiltrado["Dotação Atual"].sum()
+dotacao_atualizada = locale.format_string("%.2f", dotacao_atualizada, grouping=True)
+reforco_empenho = dffiltrado["Reforço"].sum()
+reforco_empenho = locale.format_string("%.2f", reforco_empenho, grouping=True)
+anulacao_dotacao = dffiltrado["Valor Anulado"].sum()
+anulacao_dotacao = locale.format_string("%.2f", anulacao_dotacao, grouping=True)
+dotacao_disponivel = dffiltrado["Dotação Atual"].sum()-dffiltrado["Valor Anulado"].sum()
+dotacao_disponivel = locale.format_string("%.2f", dotacao_disponivel, grouping=True)
+
 total_empenhado = dffiltrado["Valor Empenhado"].sum()
 total_empenhado = locale.format_string("%.2f", total_empenhado, grouping=True)
 total_liquidado = dffiltrado["Valor Liquidado"].sum()
@@ -92,70 +113,87 @@ total_pago = locale.format_string("%.2f", total_pago, grouping=True)
 #  ======================================== EMPENHADO POR MES ========================================
 dftemp = dffiltrado.dropna(subset=['Data'])
 dftemp = dftemp.sort_values(by='Data')
-# todos_meses = dftemp['Data'].dt.strftime('%B').unique().tolist()
 
 dftemp['ano_mes'] = dftemp['Data'].dt.to_period('M').astype(str)
 df_grouped = dftemp.groupby('ano_mes')['Valor Empenhado'].sum().reset_index()
 
 #  ======================================== FORNECEDOR ========================================
-# Agrupar os dados por fornecedor e somar os valores pagos
 df_groupedFornecedor = dffiltrado.groupby('Nome Fornecedor')['Valor Pago'].sum().reset_index()
 
-# Ordenar os fornecedores pelos valores pagos em ordem decrescente e pegar os top 10
 df_top_10_fornecedor = df_groupedFornecedor.sort_values(by='Valor Pago', ascending=False).head(10)
 df_top_10_fornecedor['Valor Pago Formatted'] = df_top_10_fornecedor['Valor Pago'].apply(lambda x: f"{x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 
 # ======================================== FONTE DE RECURSO ========================================
-# Agrupar os dados por fornecedor e somar os valores pagos
-sCampoAgrupador = 'Fonte de Recurso'
 df_groupedFonte = dffiltrado.groupby('Fonte de Recurso')['Valor Empenhado'].sum().reset_index()
 
-# Ordenar os fornecedores pelos valores pagos em ordem decrescente e pegar os top 10
 df_top_10_fonteRecurso = df_groupedFonte.sort_values(by='Valor Empenhado', ascending=False).head(10)
 df_top_10_fonteRecurso['Valor Empenhado Formatted'] = df_top_10_fonteRecurso['Valor Empenhado'].apply(lambda x: f"{x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 
+#========================================== NOME DA FUNÇÃO ===========================================
+df_groupedNomeFuncao = dffiltrado.groupby('Nome da Função')['Valor Empenhado'].sum().reset_index()
 
-col1, col2, col3 = st.columns(3)
+st.sidebar.markdown('''
+                    ----
+                    🎖️ 
+                    Criadores: Jackson Ribeiro & Fernando Zanardi''')
 
-with col1:
-    st.markdown(f"""
-        <div style="background-color:#f5f5f5;padding:8px;border-radius:10px;text-align:center">
-            <h5>Total Empenhado</h5>
-            <h3 style="color:green;">{total_empenhado}</h3>
-        </div>
-    """, unsafe_allow_html=True)
-with col2:
-    st.markdown(f"""
-        <div style="background-color:#f5f5f5;padding:8px;border-radius:10px;text-align:center">
-            <h5>Total Liquidado</h5>
-            <h3 style="color:green;">{total_liquidado}</h3>
-        </div>
-    """, unsafe_allow_html=True)
-with col3:
-    st.markdown(f"""
-        <div style="background-color:#f5f5f5;padding:8px;border-radius:10px;text-align:center">
-            <h5>Total Pago</h5>
-            <h3 style="color:green;">{total_pago}</h3>
-        </div>
-    """, unsafe_allow_html=True)
+##################################################################################
+#### UI
+##################################################################################
+
+col1, col2, col3, col4 = st.columns(4)
+# dotacao_inicial
+# dotacao_atualizada
+# reforco_empenho
+col1.metric('Dotação Inicial', value=f"{dotacao_inicial}")    
+col2.metric('Alteração de Dotação', value=f"{alteracao_dotacao}")    
+col3.metric('Dotaçao Atualizada', value=f"{dotacao_atualizada}")    
+col4.metric('Dotação Disponível', value=f"{dotacao_disponivel}")    
+
+# st.divider()
+
+col6, col7, col8 = st.columns(3)
+
+col6.metric('Total Empenhado', value=f"{total_empenhado}")    
+col7.metric('Total Liquidado', value=f"{total_liquidado}")    
+col8.metric('Total Pago', value=f"{total_pago}")    
 
 
 st.divider()
 
-# #  ======================================== EMPENHADO POR MES ========================================
-# Criar o gráfico de barras com altair
-chart = alt.Chart(df_grouped).mark_bar().encode(
-    x=alt.X('ano_mes:N'),
-    y=alt.Y('Valor Empenhado'),
-    # color='Valor Empenhado',
-    color=alt.Color('Valor Empenhado', legend=None)
-).properties(
-    title='Valor Empenhado por Ano-Mês'
-).configure_legend(
-    titleOrient='top'  # Remover a legenda à direita
-)
-# Exibir o gráfico no Streamlit
-st.altair_chart(chart, use_container_width=True)
+
+col1, col2 = st.columns(2, gap='large')
+
+with col1:
+    # #  ======================================== EMPENHADO POR MES ========================================
+    # Criar o gráfico de barras com altair
+    chart = alt.Chart(df_grouped).mark_bar().encode(
+        x=alt.X('ano_mes:N'),
+        y=alt.Y('Valor Empenhado'),
+        # color='Valor Empenhado',
+        color=alt.Color('Valor Empenhado', legend=None)
+    ).properties(
+        title='Total Empenhado por Ano-Mês'
+    ).configure_legend(
+        titleOrient='top'  # Remover a legenda à direita
+    )
+    # Exibir o gráfico no Streamlit
+    st.altair_chart(chart, use_container_width=True)
+
+with col2:
+        # #  ======================================== EMPENHADO POR MES ========================================
+    # Criar o gráfico de barras com altair
+    chart = alt.Chart(df_groupedNomeFuncao).mark_bar().encode(
+        x=alt.X('Valor Empenhado:Q'),
+        y=alt.Y('Nome da Função:N'),
+        color=alt.Color('Valor Empenhado', legend=None)
+    ).properties(
+        title='Total Empenhado por Função'
+    ).configure_legend(
+        titleOrient='top'  # Remover a legenda à direita
+    )
+    # Exibir o gráfico no Streamlit
+    st.altair_chart(chart, use_container_width=True)
 
 #  ======================================== FORNECEDOR ========================================
 # Criar o gráfico Altair de barras
@@ -199,7 +237,7 @@ st.write(chart)
 # Criar o gráfico Altair de barras
 bars = alt.Chart(df_top_10_fonteRecurso).mark_bar().encode(
     x='Valor Empenhado:Q',         # Fornecedor no eixo X
-    y=alt.Y(f'{sCampoAgrupador}:N'),
+    y=alt.Y('Fonte de Recurso:N'),
 ).properties(
     title='Empenhado por Fonte de Recurso'
 )
@@ -211,7 +249,7 @@ text = alt.Chart(df_top_10_fonteRecurso).mark_text(
     dx=5  # Distância do texto em relação à barra
 ).encode(
     x='Valor Empenhado:Q',
-    y=f'{sCampoAgrupador}:N',         # Valores pagos no eixo Y
+    y='Fonte de Recurso:N',         # Valores pagos no eixo Y
     text='Valor Empenhado Formatted:N'
 )
 
@@ -230,3 +268,12 @@ chart = chart.configure_axis(
 
 # Exibir o gráfico no Streamlit
 st.write(chart)
+
+
+st.divider()
+
+with st.expander("Clique aqui para ver o Detalhamento do Movimento"):
+    st.write('''
+        Detalhamento dos valores, de acordo com filtros aplicados sobre os dados, para acompanhametno detalhado da despesa.
+    ''')
+    st.write(dffiltrado)

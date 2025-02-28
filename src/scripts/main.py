@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import glob
+import numpy as np
 
 def buscaDados():
     # folder_path = 'c:\\Users\\jacks\OneDrive\\_TRABALHO\\_devProjetos\\github\\jackson.alfonso\\app-streamlit\\src\\data\\raw'
@@ -24,6 +25,7 @@ def buscaDados():
                 df_tmp['Valor Anulado'] = df_tmp['Valor Anulado'].str.replace('.', '').str.replace(',', '.').astype(float)
                 df_tmp['Valor Liquidado'] = df_tmp['Valor Liquidado'].str.replace('.', '').str.replace(',', '.').astype(float)
                 df_tmp['Valor Pago'] = df_tmp['Valor Pago'].str.replace('.', '').str.replace(',', '.').astype(float)
+                df_tmp['Alteração Dotação'] = df_tmp['Alteração Dotação'].str.replace('.', '').str.replace(',', '.').astype(float)
                 df_tmp['Dotação'] = df_tmp['Dotação'].str.replace('.', '').str.replace(',', '.').astype(float)
                 df_tmp['Dotação Atual'] = df_tmp['Dotação Atual'].str.replace('.', '').str.replace(',', '.').astype(float)
                 df_tmp['Empenhado até Hoje'] = df_tmp['Empenhado até Hoje'].str.replace('.', '').str.replace(',', '.').astype(float)
@@ -37,11 +39,15 @@ def buscaDados():
                 df_tmp['Ano-Mês'] = df_tmp['Data'].dt.to_period('M')  # Formato YYYY-MM
                 df_tmp['Ano'] = df_tmp['Data'].dt.year
                 df_tmp['Mês'] = df_tmp['Data'].dt.month
+                df_tmp['MesNome'] = df_tmp['Data'].dt.strftime('%B')
                 df_tmp['Dia'] = df_tmp['Data'].dt.day
 
 
                 print(df_tmp.info())
+                null_mask = df_tmp.isnull().any(axis=1)
+                null_rows = df_tmp[null_mask]
 
+                print(null_rows)
 
                 dfs.append(df_tmp)
             except Exception as e:
@@ -51,5 +57,6 @@ def buscaDados():
         if dfs:
             df_matriz = pd.concat(dfs, ignore_index=True)
             print(df_matriz.info())
+            
 
         return df_matriz.copy()
